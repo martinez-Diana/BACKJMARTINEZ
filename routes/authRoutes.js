@@ -98,13 +98,13 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Buscar usuario
+    // Buscar usuario - CORRECCIÓN: escapar `password` con backticks
     const query = `
                   SELECT 
                     id, 
                     username, 
                     email, 
-                    PASSWORD as password,
+                    \`password\`,
                     first_name,
                     last_name,
                     role_id,
