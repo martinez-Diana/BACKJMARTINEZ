@@ -71,15 +71,31 @@ try {
 // ==========================================
 // 🛡️ MIDDLEWARES
 // ==========================================
+
+// Configuración mejorada de CORS
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://frontjmartinez-production.up.railway.app"
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://frontjmartinez-production.up.railway.app/"
-    ],
+    origin: function (origin, callback) {
+      // Permitir requests sin origin (como mobile apps o curl)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.warn(`⚠️ Origen bloqueado por CORS: ${origin}`);
+        callback(new Error('No permitido por CORS'));
+      }
+    },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 200,
+    preflightContinue: false
   })
 );
 
