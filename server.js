@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./routes/authRoutes.js";
-import googleAuthRoutes from "./routes/authGoogle.js";
 import pool from "./config/db.js";
 
 dotenv.config();
@@ -15,26 +14,27 @@ const app = express();
 console.log("🔍 Verificando variables de entorno...");
 
 const requiredEnvVars = [
-  "DB_HOST",
-  "DB_USER",
-  "DB_PASSWORD",
-  "DB_NAME",
-  "JWT_SECRET",
-  "GOOGLE_CLIENT_ID",
-  "GOOGLE_CLIENT_SECRET"
+  'DB_HOST',           // ✅ Cambiar de DATABASE_HOST a DB_HOST
+  'DB_USER',           // ✅ Cambiar de DATABASE_USER a DB_USER
+  'DB_PASSWORD',       // ✅ Cambiar de DATABASE_PASSWORD a DB_PASSWORD
+  'DB_NAME',           // ✅ Cambiar de DATABASE_NAME a DB_NAME
+  'JWT_SECRET'
 ];
 
-const missingVars = requiredEnvVars.filter(v => !process.env[v]);
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-  console.error("❌ FALTAN VARIABLES DE ENTORNO CRÍTICAS:");
-  missingVars.forEach(v => console.error("   - " + v));
+  console.error('❌ FALTAN VARIABLES DE ENTORNO CRÍTICAS:');
+  missingVars.forEach(varName => {
+    console.error(`   - ${varName}`);
+  });
+  console.error('\n💡 Configúralas en Railway → Variables');
   process.exit(1);
 }
 
 console.log("✅ Variables de entorno verificadas");
 
-// Opcionales de email
+// Verificar variables opcionales (email)
 if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
   console.warn("⚠️ EMAIL_USER o EMAIL_PASS no configuradas (funciones de email deshabilitadas)");
 }
@@ -46,20 +46,25 @@ console.log("🔌 Intentando conectar a la base de datos...");
 
 try {
   const connection = await pool.getConnection();
-  console.log("✅ Conexión exitosa a MySQL");
-  console.log("📊 Base de datos:", process.env.DB_NAME);
+  console.log("✅ Conexión a base de datos exitosa");
+  console.log(`📊 Base de datos: ${process.env.DATABASE_NAME}`);
+
+    // AGREGAR ESTAS LÍNEAS DE DEBUG:
   console.log("🔍 Variables de DB:", {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     database: process.env.DB_NAME,
     hasPassword: !!process.env.DB_PASSWORD
   });
+  
   connection.release();
 } catch (error) {
-  console.error("❌ Error al conectar a MySQL:", error.message);
-  console.error("   Host:", process.env.DB_HOST);
-  console.error("   User:", process.env.DB_USER);
-  console.error("   DB:", process.env.DB_NAME);
+  console.error("❌ Error al conectar a la base de datos:");
+  console.error("   Host:", process.env.DB_HOST);        // Cambiar aquí
+  console.error("   User:", process.env.DB_USER);        // Cambiar aquí
+  console.error("   Database:", process.env.DB_NAME);    // Cambiar aquí
+  console.error("   Error:", error.message);
+  console.error("   Código:", error.code);
   process.exit(1);
 }
 
@@ -67,6 +72,7 @@ try {
 // 🛡️ MIDDLEWARES
 // ==========================================
 
+// Configuración mejorada de CORS
 const allowedOrigins = [
   "http://localhost:5173",
   "https://frontjmartinez-production.up.railway.app"
@@ -75,13 +81,21 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
+      // Permitir requests sin origin (como mobile apps o curl)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-
-      console.warn("⚠️ Origen bloqueado por CORS:", origin);
-      callback(new Error("No permitido por CORS"));
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.warn(`⚠️ Origen bloqueado por CORS: ${origin}`);
+        callback(new Error('No permitido por CORS'));
+      }
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 200,
+    preflightContinue: false
   })
 );
 
@@ -91,31 +105,30 @@ app.use(express.json());
 // 🛣️ RUTAS
 // ==========================================
 app.use("/api", authRoutes);
-app.use("/", googleAuthRoutes); // 👈 Google Login
 
-// Health Check
+// Ruta de health check
 app.get("/", (req, res) => {
-  res.json({
+  res.json({ 
     status: "OK",
     message: "🎁 API de Juguetería Martínez",
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
 app.get("/health", async (req, res) => {
   try {
-    await pool.query("SELECT 1");
-    res.json({
+    await pool.query('SELECT 1');
+    res.json({ 
       status: "healthy",
       database: "connected",
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(503).json({
+    res.status(503).json({ 
       status: "unhealthy",
       database: "disconnected",
-      error: error.message,
+      error: error.message
     });
   }
 });
@@ -125,33 +138,35 @@ app.get("/health", async (req, res) => {
 // ==========================================
 const PORT = process.env.PORT || 4000;
 
-const server = app.listen(PORT, "0.0.0.0", () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n✨ ========================================`);
   console.log(`   🚀 Servidor iniciado exitosamente`);
   console.log(`   📍 Puerto: ${PORT}`);
-  console.log(`   🌐 Entorno: ${process.env.NODE_ENV}`);
-  console.log(`   🔗 Frontend: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
-  console.log(`   ⏰ ${new Date().toLocaleString("es-MX")}`);
+  console.log(`   🌐 Entorno: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   🔗 Frontend: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
+  console.log(`   ⏰ ${new Date().toLocaleString('es-MX')}`);
   console.log(`========================================\n`);
 });
 
 // ==========================================
 // ⚠️ MANEJO DE ERRORES
 // ==========================================
-process.on("uncaughtException", (error) => {
-  console.error("\n❌ Excepción no capturada:", error);
+process.on('uncaughtException', (error) => {
+  console.error('\n❌ Excepción no capturada:');
+  console.error(error);
   process.exit(1);
 });
 
-process.on("unhandledRejection", (reason) => {
-  console.error("\n❌ Promise rechazada no manejada:", reason);
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('\n❌ Promise rechazada no manejada:');
+  console.error('Razón:', reason);
   process.exit(1);
 });
 
-process.on("SIGTERM", () => {
-  console.log("\n⚠️ SIGTERM recibido. Cerrando servidor...");
+process.on('SIGTERM', () => {
+  console.log('\n⚠️ SIGTERM recibido. Cerrando servidor gracefully...');
   server.close(() => {
-    console.log("✅ Servidor cerrado");
+    console.log('✅ Servidor cerrado');
     pool.end();
     process.exit(0);
   });
