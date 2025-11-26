@@ -14,9 +14,10 @@ const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 /* =========================================================
-   🔵 LOGIN CON GOOGLE (ÚNICO Y LIMPIO)
+   🔵 LOGIN CON GOOGLE (CORREGIDO)
+   Ruta real final: /api/auth/google
 ========================================================= */
-router.post("/auth/google", async (req, res) => {
+router.post("/google", async (req, res) => {
   try {
     const { credential } = req.body;
 
@@ -30,6 +31,7 @@ router.post("/auth/google", async (req, res) => {
     });
 
     const payload = ticket.getPayload();
+
     const googleId = payload.sub;
     const email = payload.email;
     const firstName = payload.given_name;
@@ -109,8 +111,9 @@ router.post("/auth/google", async (req, res) => {
         profile_picture: user.profile_picture
       }
     });
+
   } catch (error) {
-    console.error("Error en /auth/google:", error.message);
+    console.error("Error en /api/auth/google:", error.message);
     return res.status(500).json({ error: "Error al autenticar con Google" });
   }
 });
@@ -143,9 +146,7 @@ router.post("/register", async (req, res) => {
     );
 
     if (emailExists.length > 0)
-      return res
-        .status(400)
-        .json({ error: "El correo ya está registrado" });
+      return res.status(400).json({ error: "El correo ya está registrado" });
 
     // Username existente
     const [usernameExists] = await pool.query(
@@ -154,9 +155,7 @@ router.post("/register", async (req, res) => {
     );
 
     if (usernameExists.length > 0)
-      return res
-        .status(400)
-        .json({ error: "El nombre de usuario ya está en uso" });
+      return res.status(400).json({ error: "El nombre de usuario ya está en uso" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -194,9 +193,7 @@ router.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password)
-      return res
-        .status(400)
-        .json({ error: "Usuario y contraseña requeridos" });
+      return res.status(400).json({ error: "Usuario y contraseña requeridos" });
 
     const query = `
       SELECT id, username, email, password, first_name, last_name, role_id
@@ -208,17 +205,13 @@ router.post("/login", async (req, res) => {
     const [rows] = await pool.query(query, [username, username]);
 
     if (rows.length === 0)
-      return res
-        .status(401)
-        .json({ error: "Usuario o contraseña incorrectos" });
+      return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
 
     const user = rows[0];
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid)
-      return res
-        .status(401)
-        .json({ error: "Usuario o contraseña incorrectos" });
+      return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
 
     const token = jwt.sign(
       {
@@ -245,7 +238,7 @@ router.post("/login", async (req, res) => {
 /* =========================================================
    📧 VERIFICACIÓN POR EMAIL
 ========================================================= */
-router.post("/auth/email/request-code", async (req, res) => {
+router.post("/email/request-code", async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -278,7 +271,7 @@ router.post("/auth/email/request-code", async (req, res) => {
       message: "Código enviado a tu correo"
     });
   } catch (error) {
-    console.error("Error en /auth/email/request-code:", error);
+    console.error("Error en /email/request-code:", error);
     res.status(500).json({ error: "Error en el servidor" });
   }
 });
@@ -286,7 +279,7 @@ router.post("/auth/email/request-code", async (req, res) => {
 /* =========================================================
    🔍 VERIFICAR CÓDIGO
 ========================================================= */
-router.post("/auth/email/verify-code", async (req, res) => {
+router.post("/email/verify-code", async (req, res) => {
   try {
     const { email, code } = req.body;
 
@@ -331,7 +324,7 @@ router.post("/auth/email/verify-code", async (req, res) => {
       user
     });
   } catch (error) {
-    console.error("Error en /auth/email/verify-code:", error);
+    console.error("Error en /email/verify-code:", error);
     res.status(500).json({ error: "Error en el servidor" });
   }
 });
@@ -339,7 +332,7 @@ router.post("/auth/email/verify-code", async (req, res) => {
 /* =========================================================
    🔐 RECUPERACIÓN DE CONTRASEÑA
 ========================================================= */
-router.post("/auth/forgot-password", async (req, res) => {
+router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -372,7 +365,7 @@ router.post("/auth/forgot-password", async (req, res) => {
       message: "Correo enviado para restablecer contraseña"
     });
   } catch (error) {
-    console.error("Error en /auth/forgot-password:", error);
+    console.error("Error en /forgot-password:", error);
     res.status(500).json({ error: "Error en servidor" });
   }
 });
@@ -380,7 +373,7 @@ router.post("/auth/forgot-password", async (req, res) => {
 /* =========================================================
    🔄 RESTABLECER CONTRASEÑA
 ========================================================= */
-router.post("/auth/reset-password", async (req, res) => {
+router.post("/reset-password", async (req, res) => {
   try {
     const { token, newPassword } = req.body;
 
@@ -414,7 +407,7 @@ router.post("/auth/reset-password", async (req, res) => {
       message: "Contraseña actualizada"
     });
   } catch (error) {
-    console.error("Error en /auth/reset-password:", error);
+    console.error("Error en /reset-password:", error);
     res.status(500).json({ error: "Error en servidor" });
   }
 });

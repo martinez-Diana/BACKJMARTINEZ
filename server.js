@@ -8,71 +8,47 @@ dotenv.config();
 
 const app = express();
 
-// ==========================================
-// 🔍 VERIFICAR VARIABLES DE ENTORNO CRÍTICAS
-// ==========================================
-console.log("🔍 Verificando variables de entorno...");
+/* ==========================================
+   🔍 DEBUG: VARIABLES GOOGLE
+========================================== */
+console.log("🔍 GOOGLE CLIENT ID:", process.env.GOOGLE_CLIENT_ID || "❌ NO DEFINIDO");
 
+/* ==========================================
+   🔍 VERIFICAR VARIABLES CRÍTICAS
+========================================== */
 const requiredEnvVars = [
-  'DB_HOST',           // ✅ Cambiar de DATABASE_HOST a DB_HOST
-  'DB_USER',           // ✅ Cambiar de DATABASE_USER a DB_USER
-  'DB_PASSWORD',       // ✅ Cambiar de DATABASE_PASSWORD a DB_PASSWORD
-  'DB_NAME',           // ✅ Cambiar de DATABASE_NAME a DB_NAME
-  'JWT_SECRET'
+  "DB_HOST",
+  "DB_USER",
+  "DB_PASSWORD",
+  "DB_NAME",
+  "JWT_SECRET",
+  "GOOGLE_CLIENT_ID"
 ];
 
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
+const missingVars = requiredEnvVars.filter(v => !process.env[v]);
 if (missingVars.length > 0) {
-  console.error('❌ FALTAN VARIABLES DE ENTORNO CRÍTICAS:');
-  missingVars.forEach(varName => {
-    console.error(`   - ${varName}`);
-  });
-  console.error('\n💡 Configúralas en Railway → Variables');
+  console.error("❌ FALTAN VARIABLES DE ENTORNO:");
+  console.table(missingVars);
   process.exit(1);
 }
 
-console.log("✅ Variables de entorno verificadas");
+console.log("✅ Variables esenciales OK");
 
-// Verificar variables opcionales (email)
-if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-  console.warn("⚠️ EMAIL_USER o EMAIL_PASS no configuradas (funciones de email deshabilitadas)");
-}
-
-// ==========================================
-// 🗄️ VERIFICAR CONEXIÓN A BASE DE DATOS
-// ==========================================
-console.log("🔌 Intentando conectar a la base de datos...");
-
+/* ==========================================
+   🔌 BASE DE DATOS
+========================================== */
 try {
   const connection = await pool.getConnection();
-  console.log("✅ Conexión a base de datos exitosa");
-  console.log(`📊 Base de datos: ${process.env.DATABASE_NAME}`);
-
-    // AGREGAR ESTAS LÍNEAS DE DEBUG:
-  console.log("🔍 Variables de DB:", {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    database: process.env.DB_NAME,
-    hasPassword: !!process.env.DB_PASSWORD
-  });
-  
+  console.log("✅ Conexión a BD exitosa");
   connection.release();
-} catch (error) {
-  console.error("❌ Error al conectar a la base de datos:");
-  console.error("   Host:", process.env.DB_HOST);        // Cambiar aquí
-  console.error("   User:", process.env.DB_USER);        // Cambiar aquí
-  console.error("   Database:", process.env.DB_NAME);    // Cambiar aquí
-  console.error("   Error:", error.message);
-  console.error("   Código:", error.code);
+} catch (err) {
+  console.error("❌ Error al conectar con BD:", err.message);
   process.exit(1);
 }
 
-// ==========================================
-// 🛡️ MIDDLEWARES
-// ==========================================
-
-// Configuración mejorada de CORS
+/* ==========================================
+   🛡️ CORS — Muy importante para GOOGLE LOGIN
+========================================== */
 const allowedOrigins = [
   "http://localhost:5173",
   "https://frontjmartinez-production.up.railway.app"
@@ -80,96 +56,40 @@ const allowedOrigins = [
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Permitir requests sin origin (como mobile apps o curl)
+    origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        console.warn(`⚠️ Origen bloqueado por CORS: ${origin}`);
-        callback(new Error('No permitido por CORS'));
-      }
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+
+      console.warn("❌ CORS bloqueó:", origin);
+      return callback(new Error("No permitido por CORS"));
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    optionsSuccessStatus: 200,
-    preflightContinue: false
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"]
   })
 );
 
 app.use(express.json());
 
-// ==========================================
-// 🛣️ RUTAS
-// ==========================================
+/* ==========================================
+   🛣️ RUTAS
+========================================== */
 app.use("/api", authRoutes);
 
-// Ruta de health check
 app.get("/", (req, res) => {
-  res.json({ 
-    status: "OK",
-    message: "🎁 API de Juguetería Martínez",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+  res.json({
+    message: "API de Juguetería Martínez",
+    googleClientId: process.env.GOOGLE_CLIENT_ID,
+    status: "OK"
   });
 });
 
-app.get("/health", async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ 
-      status: "healthy",
-      database: "connected",
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(503).json({ 
-      status: "unhealthy",
-      database: "disconnected",
-      error: error.message
-    });
-  }
-});
-
-// ==========================================
-// 🚀 INICIAR SERVIDOR
-// ==========================================
+/* ==========================================
+   🚀 SERVIDOR
+========================================== */
 const PORT = process.env.PORT || 4000;
-
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n✨ ========================================`);
-  console.log(`   🚀 Servidor iniciado exitosamente`);
-  console.log(`   📍 Puerto: ${PORT}`);
-  console.log(`   🌐 Entorno: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`   🔗 Frontend: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-  console.log(`   ⏰ ${new Date().toLocaleString('es-MX')}`);
-  console.log(`========================================\n`);
-});
-
-// ==========================================
-// ⚠️ MANEJO DE ERRORES
-// ==========================================
-process.on('uncaughtException', (error) => {
-  console.error('\n❌ Excepción no capturada:');
-  console.error(error);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('\n❌ Promise rechazada no manejada:');
-  console.error('Razón:', reason);
-  process.exit(1);
-});
-
-process.on('SIGTERM', () => {
-  console.log('\n⚠️ SIGTERM recibido. Cerrando servidor gracefully...');
-  server.close(() => {
-    console.log('✅ Servidor cerrado');
-    pool.end();
-    process.exit(0);
-  });
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Servidor en puerto ${PORT}`);
 });
 
 export default app;

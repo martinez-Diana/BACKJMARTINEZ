@@ -4,16 +4,9 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // Configurar el transporter de Nodemailer con mejor manejo de errores
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false // Permite certificados autofirmados
-  }
-});
+let transporter = null;
+console.log("⚠ Email deshabilitado temporalmente (Railway bloquea SMTP)");
+
 
 // Verificar la configuración al iniciar
 transporter.verify((error, success) => {
